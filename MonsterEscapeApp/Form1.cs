@@ -13,66 +13,27 @@ namespace MonsterEscapeApp
 {
     public partial class Form1 : Form
     {
-        private class AI : IMonsterEscapeAI
-        {
-            int step = 0;
-            double criticalRadius = -1;
-            int nState = 0;
-            public double NextBearing(IState state)
-            {
-                step = (++step) % 8;
-                if (step == 0)
-                    Thread.Sleep(1);
+        private AI _ai;
+        private IAlgorithm _escape;
+        private Thread _thread;
 
-                switch (nState)
-                {
-                    case 0:
-                        criticalRadius = 1 / state.MonsterSpeed;
-                        nState++;
-                        return state.CurrentBearing;
-                    case 1:
-                        if (state.PositionRadial - criticalRadius > 1e-5)
-                        {
-                            nState++;
-                            return state.CurrentBearing + Math.PI;
-                        }
-                        return state.CurrentBearing;
-                    case 2:
-                        if (state.PositionRadial - criticalRadius > 1e-5)
-                        {
-                            return state.CurrentBearing;
-                        }
-                        nState++;
-                        return state.CurrentBearing + Math.PI / 2;
-                    case 3:
-                        if (state.PositionTheta.Diff(state.MonsterTheta + Math.PI) < 1e-5)
-                        {
-                            nState++;
-                            return state.CurrentBearing + Math.PI / 2;
-                        }
-                        return state.CurrentBearing - 1e-5 / criticalRadius;
-                    case 4:
-                    default:
-                        return state.CurrentBearing;
-                }
+        private class BufferedPanel : Panel
+        {
+            public BufferedPanel() : base()
+            {
+                DoubleBuffered = true;
             }
         }
-
-        private AI _ai;
-        private IMonsterEscape _escape;
-        private Thread _thread;
 
         public Form1()
         {
             InitializeComponent();
 
-            Paint += new PaintEventHandler(Form1_Paint);
+            panel1.Paint += new PaintEventHandler(Form1_Paint);
             FormClosing += new FormClosingEventHandler(Form1_FormClosing);
 
             _ai = new AI();
-            _escape = MonsterEscape.MonsterEscape.Create(1e-5, 4, 1e-5, _ai);
-
-            DoubleBuffered = true;
+            _escape = MonsterEscape.Algorithm.Create(1e-5, 4, 1e-3, _ai);
         }
 
         void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -82,14 +43,11 @@ namespace MonsterEscapeApp
 
         void Form1_Paint(object sender, PaintEventArgs e)
         {
-            MonsterEscape.MonsterEscape.DrawSituation(e.Graphics, DisplayRectangle, _escape.GetState());
+            MonsterEscape.Algorithm.DrawSituation(e.Graphics, panel1.DisplayRectangle, _escape.GetState());
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            _thread = new Thread(new ThreadStart(worker));
-            _thread.Start();
-
             var timer = new System.Windows.Forms.Timer();
             timer.Interval = 1000 / 30;
             timer.Tick += (o, ee) => { this.Invalidate(true); };
@@ -102,7 +60,26 @@ namespace MonsterEscapeApp
                 Invoke(new Action(() =>
                 {
                     MessageBox.Show("Oops!");
+                    button1.Enabled = true;
                 }));
+            else
+                Invoke(new Action(() =>
+                {
+                    MessageBox.Show("Yay!");
+                    button1.Enabled = true;
+                }));
+        }
+
+        private void vScrollBar1_Scroll(object sender, ScrollEventArgs e)
+        {
+            _escape.SetSpeed(1 << vScrollBar1.Value);
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            button1.Enabled = false;
+            _thread = new Thread(new ThreadStart(worker));
+            _thread.Start();
         }
     }
 }
